@@ -46,25 +46,43 @@ exports.addMembership = async (req, res) => {
 };
 
 exports.getMemberships = async (req, res) => {
-    try {
-      const loggedInUser = req.user;  
-      
-      // Fetch memberships for the gym (logged-in user's ID)
-      const memberships = await Membership.find({ gym: loggedInUser._id });
-  
-      if (memberships.length === 0) {
-        return res.status(404).json({ message: "No memberships found for this gym." });
+  try {
+    const loggedInUser = req.user;  // Get the logged-in user
+
+    // Aggregation pipeline to fetch memberships and join with the gym (User) collection
+    const memberships = await Membership.aggregate([
+      // Match memberships for the specific gym (logged-in user's ID)
+      {
+        $match: {
+          gym: loggedInUser._id, 
+        },
+      },
+      {
+        $lookup: {
+          from : "users",
+          localField: "gym",
+          foreignField: "_id",
+          as: "gymDetails",
+        }
+      },
+      {
+        $project : {
+          _id: 1,
+          months: 1,
+          price: 1
+        }
       }
-  
-      res.status(200).json({
-        message: "Memberships Fetched Successfully",
-        memberships,
-      });
-    } catch (err) {
-      console.log(err);
-      res.status(500).json({
-        error: "Server Error",
-      });
-    }
-  };
-  
+    ]);
+
+    // Return the fetched memberships along with gym details
+    res.status(200).json({
+      message: "Memberships Fetched Successfully",
+      memberships,
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      error: "Server Error",
+    });
+  }
+};
